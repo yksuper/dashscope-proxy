@@ -48,7 +48,11 @@ cd dashscope-proxy
 ### 2. 一键部署
 
 ```bash
+# 全新安装（旧版）
 bash setup.sh
+
+# 或 V2 版（动态子账号 + 独立重置日，与旧版可并行运行）
+bash setup-v2.sh
 ```
 
 脚本会自动：
