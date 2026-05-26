@@ -606,7 +606,7 @@ async def user_usage(request: Request):
 async def _check_and_deduct_quota(kid: str, meta: dict) -> tuple:
     """原子检查并扣除三维配额，返回 (k5h, kw, km) 供回滚用。不足则抛 429。"""
     lims = _limits(meta)
-    rd = meta.get("reset_day") or _reset_day
+    rd = meta.get("reset_day") or await _get_reset_day()
     pi   = period_info(kid, rd)
     k5h, kw, km = pi["5h"]["key"], pi["week"]["key"], pi["month"]["key"]
     e5h, ew, em = pi["5h"]["expire_at"], pi["week"]["expire_at"], pi["month"]["expire_at"]
