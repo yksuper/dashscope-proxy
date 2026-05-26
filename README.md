@@ -52,7 +52,7 @@ cd dashscope-proxy
 bash setup.sh
 
 # 或部署 V2 版（与旧版并行运行，不冲突）
-git clone https://github.com/Peters-Pans/dashscope-proxy.git dashscope-proxy-v2
+git clone https://github.com/yksuper/dashscope-proxy.git dashscope-proxy-v2
 cd dashscope-proxy-v2
 bash setup-v2.sh
 ```
