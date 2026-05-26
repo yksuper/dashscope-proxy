@@ -8,6 +8,8 @@ services:
 
   redis:
     image: redis:7-alpine
+    cap_add:
+      - SYS_PTRACE
     command: redis-server --port 16379 --requirepass ${REDIS_PASSWORD} --save 60 1 --loglevel warning --ignore-warnings ARM64-COW-BUG
     environment:
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
