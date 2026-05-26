@@ -567,8 +567,8 @@ async def admin_set_reset_day(body: ResetDayUpdate, request: Request):
                 old_pi["month"]["key"], new_pi["month"]["key"],
                 new_pi["month"]["expire_at"],
             )
-            # 更新子账号的 reset_day
-            meta["reset_day"] = new_day
+            # 更新子账号的 reset_day 为 None，保持跟随全局
+            meta["reset_day"] = None
             await _save_meta(meta)
     await rdb.set("config:monthly_reset_day", new_day)
     _reset_day = new_day
