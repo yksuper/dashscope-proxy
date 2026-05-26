@@ -229,12 +229,6 @@ async def startup():
             await rdb.set(f"key:meta:{kid}", json.dumps(meta, ensure_ascii=False), nx=True)
         await rdb.set("config:next_kid_num", 5, nx=True)
     await _rebuild_secret_map()
-    # 数据修复：清理被错误固化的 reset_day（之前代码会把跟随全局的 reset_day 设为具体值）
-    for kid in await _scan_all_kids():
-        meta = await _get_meta(kid)
-        if meta and meta.get("reset_day") is not None and meta.get("reset_day") == _reset_day:
-            meta["reset_day"] = None
-            await _save_meta(meta)
 
 
 @app.on_event("shutdown")
@@ -579,6 +573,24 @@ async def admin_set_reset_day(body: ResetDayUpdate, request: Request):
     await rdb.set("config:monthly_reset_day", new_day)
     _reset_day = new_day
     return {"monthly_reset_day": new_day}
+
+
+@app.post("/_admin/config/repair-reset-day")
+async def admin_repair_reset_day(request: Request):
+    """修复被错误固化的 reset_day：将等于当前全局值的 reset_day 清除为 None。"""
+    _check_admin(request)
+    global_rd = await _get_reset_day()
+    kids = await _scan_all_kids()
+    fixed = []
+    for kid in kids:
+        meta = await _get_meta(kid)
+        if not meta:
+            continue
+        if meta.get("reset_day") is not None and meta.get("reset_day") == global_rd:
+            meta["reset_day"] = None
+            await _save_meta(meta)
+            fixed.append(kid)
+    return {"fixed": fixed, "count": len(fixed), "global_reset_day": global_rd}
 
 
 # ─────────────────────────────────────────

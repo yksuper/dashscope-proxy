@@ -203,7 +203,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <span class="cfg-label">月度配额重置日</span>
         <span class="cfg-val" id="cfg-reset-day">每月 — 日</span>
       </div>
-      <button class="cfg-edit" onclick="openResetDay()">修改</button>
+      <div style="display:flex;gap:8px">
+        <button class="cfg-edit" onclick="repairResetDay()" data-tip="修复被错误固化的重置日" style="background:rgba(248,113,113,.15);border-color:rgba(248,113,113,.3);color:var(--danger)">🔧 修复数据</button>
+        <button class="cfg-edit" onclick="openResetDay()">修改</button>
+      </div>
     </div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
       <button class="btn-p" onclick="createKey()" style="padding:10px 20px;border-radius:9px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:var(--accent);color:#fff">＋ 新建子Key</button>
@@ -557,6 +560,16 @@ async function saveResetDay(){
   const r=await fetch('/_admin/config/reset-day',{method:'PUT',headers:{'X-Admin-Token':tok,'Content-Type':'application/json'},body:JSON.stringify({day:v})});
   if(r.ok){closeM('m-reset-day');document.getElementById('cfg-reset-day').textContent=`每月第 ${v} 日`;showT('重置日已更新','s');await loadData();}
   else showT('保存失败','e');
+}
+
+async function repairResetDay(){
+  const r=await fetch('/_admin/config/repair-reset-day',{method:'POST',headers:{'X-Admin-Token':tok}});
+  if(r.ok){
+    const d=await r.json();
+    if(d.count>0) showT(`已修复 ${d.count} 个子账号: ${d.fixed.join(', ')}`,'s');
+    else showT('没有需要修复的子账号','s');
+    await loadData();
+  } else showT('修复失败','e');
 }
 
 // ── 弹窗 / Toast ──
