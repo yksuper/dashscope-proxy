@@ -391,7 +391,7 @@ function renderKeys(){
           <div class="kav">${(k.label||k.kid)[0]}</div>
           <div>
             <div class="kname" onclick="openLabel('${k.kid}')">${esc(k.label)}</div>
-            <div class="knote">${esc(k.note||k.kid)}${k.reset_day?` · 每月${k.reset_day}日重置`:''}</div>
+            <div class="knote">${esc(k.note||k.kid)} · 每月${k.reset_day||globalRD}日重置</div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
