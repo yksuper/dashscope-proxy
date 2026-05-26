@@ -289,7 +289,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <div class="toast" id="toast"></div>
 
 <script>
-let tok='', data=[], ek=null;
+let tok='', data=[], ek=null, globalRD=1;
 
 // ── 自动登录 ──
 window.addEventListener('DOMContentLoaded', ()=>{
@@ -337,7 +337,7 @@ async function loadData(){
   ]);
   if(!r1.ok){showT('加载失败','e');return;}
   data=await r1.json(); renderOv(); renderKeys();
-  if(r2.ok){const cfg=await r2.json();document.getElementById('cfg-reset-day').textContent=`每月第 ${cfg.monthly_reset_day} 日`;}
+  if(r2.ok){const cfg=await r2.json();globalRD=cfg.monthly_reset_day;document.getElementById('cfg-reset-day').textContent=`每月第 ${cfg.monthly_reset_day} 日`;}
   document.getElementById('ts').textContent='最后更新 '+new Date().toLocaleTimeString('zh-CN');
 }
 
@@ -555,7 +555,7 @@ async function saveResetDay(){
   const v=parseInt(document.getElementById('i-reset-day').value);
   if(!v||v<1||v>28){showT('请输入 1-28 的数字','e');return;}
   const r=await fetch('/_admin/config/reset-day',{method:'PUT',headers:{'X-Admin-Token':tok,'Content-Type':'application/json'},body:JSON.stringify({day:v})});
-  if(r.ok){closeM('m-reset-day');document.getElementById('cfg-reset-day').textContent=`每月第 ${v} 日`;showT('重置日已更新','s');}
+  if(r.ok){closeM('m-reset-day');document.getElementById('cfg-reset-day').textContent=`每月第 ${v} 日`;showT('重置日已更新','s');await loadData();}
   else showT('保存失败','e');
 }
 

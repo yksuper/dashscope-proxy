@@ -545,7 +545,7 @@ function pc(p){return p>=90?'crit':p>=70?'warn':'ok'}
 function render(){
   document.getElementById('uav').textContent=(D.label||'?')[0];
   document.getElementById('uname').textContent=D.label;
-  document.getElementById('umeta').textContent=D.kid+' · 已用量';
+  document.getElementById('umeta').textContent=D.kid+(D.reset_day?` · 每月${D.reset_day}日重置`:'')+(D.usage?' · 已用量':'');
   document.getElementById('showk').textContent=myKey;
 
   const now=new Date();

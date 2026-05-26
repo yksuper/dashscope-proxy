@@ -588,12 +588,14 @@ async def user_usage(request: Request):
     meta = await _get_meta(kid)
     lims = _limits(meta)
     used = await _usage(kid)
-    pi   = period_info(kid, await _get_reset_day())
+    rd = meta.get("reset_day") or await _get_reset_day()
+    pi   = period_info(kid, rd)
     return {
         "label": meta["label"], "kid": kid, "secret": secret,
         "enabled": meta["enabled"],
         "limits": lims, "usage": used,
         "pct":    {k: round(used[k] / lims[k] * 100, 1) for k in lims},
+        "reset_day": rd,
         "reset_at":     {k: pi[k]["reset_at"] for k in pi},
         "period_label": {k: pi[k]["label"]    for k in pi},
         "updated_at": int(time.time()),
