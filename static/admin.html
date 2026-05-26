@@ -339,8 +339,9 @@ async function loadData(){
     fetch('/_admin/config',{headers:{'X-Admin-Token':tok}}),
   ]);
   if(!r1.ok){showT('加载失败','e');return;}
-  data=await r1.json(); renderOv(); renderKeys();
+  data=await r1.json();
   if(r2.ok){const cfg=await r2.json();globalRD=cfg.monthly_reset_day;document.getElementById('cfg-reset-day').textContent=`每月第 ${cfg.monthly_reset_day} 日`;}
+  renderOv(); renderKeys();
   document.getElementById('ts').textContent='最后更新 '+new Date().toLocaleTimeString('zh-CN');
 }
 
