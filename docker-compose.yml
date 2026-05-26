@@ -8,7 +8,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--port", "16379", "--requirepass", "${REDIS_PASSWORD}", "--save", "60", "1", "--loglevel", "warning", "--ignore-warnings", "ARM64-COW-BUG", "--allow-unsafe-arm64-cow"]
+    command: ["redis-server", "--port", "16379", "--requirepass", "${REDIS_PASSWORD}", "--save", "60", "1", "--loglevel", "warning", "--ignore-warnings", "ARM64-COW-BUG", "--enable-arm64-madvise-fix", "no"]
     environment:
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
     network_mode: host
