@@ -3,17 +3,18 @@ services:
   proxy:
     build: .
     env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
     network_mode: host
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
-    cap_add:
-      - SYS_PTRACE
+    network_mode: host
     command: sh -c 'redis-server --port 16379 --requirepass "$$REDIS_PASSWORD" --save 60 1 --loglevel warning --ignore-warnings ARM64-COW-BUG'
     environment:
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
-    network_mode: host
     volumes:
       - redis_data:/data
     healthcheck:
