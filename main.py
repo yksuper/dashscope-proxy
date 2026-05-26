@@ -229,6 +229,12 @@ async def startup():
             await rdb.set(f"key:meta:{kid}", json.dumps(meta, ensure_ascii=False), nx=True)
         await rdb.set("config:next_kid_num", 5, nx=True)
     await _rebuild_secret_map()
+    # 数据修复：清理被错误固化的 reset_day（之前代码会把跟随全局的 reset_day 设为具体值）
+    for kid in await _scan_all_kids():
+        meta = await _get_meta(kid)
+        if meta and meta.get("reset_day") is not None and meta.get("reset_day") == _reset_day:
+            meta["reset_day"] = None
+            await _save_meta(meta)
 
 
 @app.on_event("shutdown")
