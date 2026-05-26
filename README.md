@@ -51,7 +51,9 @@ cd dashscope-proxy
 # 全新安装（旧版）
 bash setup.sh
 
-# 或 V2 版（动态子账号 + 独立重置日，与旧版可并行运行）
+# 或部署 V2 版（与旧版并行运行，不冲突）
+git clone https://github.com/Peters-Pans/dashscope-proxy.git dashscope-proxy-v2
+cd dashscope-proxy-v2
 bash setup-v2.sh
 ```
 
