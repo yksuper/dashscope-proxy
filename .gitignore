@@ -4,3 +4,10 @@ __pycache__/
 .venv/
 venv/
 *.log
+# 工具目录
+.claude/
+.serena/
+
+# 项目特定
+CLAUDE.md
+.mcp.json

@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field, ConfigDict
 #  默认配额（每个子Key）
 # ─────────────────────────────────────────
 DEFAULT_LIMITS = {"5h": 1_500, "week": 11_250, "month": 22_500}
+MAX_KEYS = 10
 
 # ─────────────────────────────────────────
 #  Pydantic 校验模型
@@ -37,9 +38,10 @@ class UsageUpdate(_QuotaFields):
     """用量更新"""
 
 class LabelUpdate(BaseModel):
-    """用户标签更新"""
-    label: str = Field(..., max_length=100,  description="用户名称")
-    note:  str = Field("",  max_length=1000, description="备注")
+    """用户标签 + 重置日更新"""
+    label:     str = Field(..., max_length=100,  description="用户名称")
+    note:      str = Field("",  max_length=1000, description="备注")
+    reset_day: int | None = Field(None, ge=1, le=28, description="月度重置日（1-28，None=跟随全局）")
 
 class ResetDayUpdate(BaseModel):
     """月度重置日更新"""
@@ -212,17 +214,20 @@ async def startup():
     await rdb.set("config:monthly_reset_day", env_day, nx=True)
     stored = await rdb.get("config:monthly_reset_day")
     _reset_day = int(stored) if stored else env_day
-    for i in range(1, 5):
-        kid = f"k{i}"
-        secret = os.getenv(f"KEY_{i}", "sk-sub-" + "".join(
-            secrets.choice(string.ascii_lowercase + string.digits) for _ in range(16)))
-        meta = {
-            "kid": kid, "label": f"用户{i}", "secret": secret,
-            "enabled": True, "limits": {"5h": None, "week": None, "month": None},
-            "note": "", "created_at": int(time.time()),
-        }
-        # nx=True：已存在则跳过，避免覆盖现有数据（防止重启时多实例竞争写入）
-        await rdb.set(f"key:meta:{kid}", json.dumps(meta, ensure_ascii=False), nx=True)
+    existing = await _scan_all_kids()
+    if not existing:
+        # 首次启动：创建 k1-k4 作为兼容
+        for i in range(1, 5):
+            kid = f"k{i}"
+            secret = os.getenv(f"KEY_{i}", "sk-sub-" + "".join(
+                secrets.choice(string.ascii_lowercase + string.digits) for _ in range(16)))
+            meta = {
+                "kid": kid, "label": f"用户{i}", "secret": secret,
+                "enabled": True, "limits": {"5h": None, "week": None, "month": None},
+                "note": "", "created_at": int(time.time()), "reset_day": _reset_day,
+            }
+            await rdb.set(f"key:meta:{kid}", json.dumps(meta, ensure_ascii=False), nx=True)
+        await rdb.set("config:next_kid_num", 5, nx=True)
     await _rebuild_secret_map()
 
 
@@ -239,15 +244,46 @@ async def _get_reset_day() -> int:
 
 
 async def _rebuild_secret_map():
-    """从所有 key:meta:k{i} 重建 secret→kid 映射表。仅在 Key secret 变更时调用。"""
+    """从所有 key:meta:* 重建 secret→kid 映射表。仅在 Key secret 变更时调用。"""
+    kids = await _scan_all_kids()
+    if not kids:
+        return
     pipe = rdb.pipeline()
-    for i in range(1, 5):
-        pipe.get(f"key:meta:k{i}")
+    for kid in kids:
+        pipe.get(f"key:meta:{kid}")
     raws = await pipe.execute()
     mapping = {json.loads(r)["secret"]: json.loads(r)["kid"] for r in raws if r}
     if mapping:
         await rdb.delete("map:secret")
         await rdb.hset("map:secret", mapping=mapping)
+
+
+async def _scan_all_kids() -> list[str]:
+    """Scan Redis for all existing key:meta:* entries, return sorted kid list."""
+    kids = []
+    async for k in rdb.scan_iter(match="key:meta:*", count=100):
+        kids.append(k.removeprefix("key:meta:"))
+    def _sort_key(kid: str):
+        num = kid[1:]
+        return int(num) if num.isdigit() else 999999
+    kids.sort(key=_sort_key)
+    return kids
+
+
+async def _get_next_kid_num() -> int:
+    """Get next kid number from Redis counter. Falls back to scanning if missing."""
+    n = await rdb.get("config:next_kid_num")
+    if n is not None:
+        return int(n)
+    kids = await _scan_all_kids()
+    if not kids:
+        return 1
+    max_num = 0
+    for kid in kids:
+        num = kid[1:]
+        if num.isdigit():
+            max_num = max(max_num, int(num))
+    return max_num + 1
 
 
 async def _get_meta(kid: str) -> dict | None:
@@ -267,7 +303,9 @@ def _limits(meta: dict) -> dict:
 
 
 async def _usage(kid: str) -> dict:
-    pi = period_info(kid, await _get_reset_day())
+    meta = await _get_meta(kid)
+    rd = (meta or {}).get("reset_day") or _reset_day
+    pi = period_info(kid, rd)
     vals = await rdb.mget(pi["5h"]["key"], pi["week"]["key"], pi["month"]["key"])
     return {
         "5h":    int(vals[0]) if vals[0] else 0,
@@ -320,13 +358,17 @@ async def admin_list_keys(request: Request):
     _check_admin(request)
 
     # 两轮 pipeline：先拉全部 meta，再批量拉 usage 计数器
+    kids = await _scan_all_kids()
     pipe = rdb.pipeline()
-    for i in range(1, 5):
-        pipe.get(f"key:meta:k{i}")
+    for kid in kids:
+        pipe.get(f"key:meta:{kid}")
     metas = [json.loads(r) for r in await pipe.execute() if r]
 
-    rd = await _get_reset_day()
-    period_infos = [period_info(m["kid"], rd) for m in metas]
+    rd_global = await _get_reset_day()
+    period_infos = []
+    for m in metas:
+        child_rd = m.get("reset_day") or rd_global
+        period_infos.append(period_info(m["kid"], child_rd))
     pipe = rdb.pipeline()
     for pi in period_infos:
         for dim in ("5h", "week", "month"):
@@ -350,6 +392,7 @@ async def admin_list_keys(request: Request):
             "usage": used,
             "pct":   {k: round(used[k] / lims[k] * 100, 1) for k in lims},
             "period_info": {k: pi[k]["reset_at"] for k in pi},
+            "reset_day": meta.get("reset_day"),
         })
     return result
 
@@ -403,8 +446,61 @@ async def admin_set_label(kid: str, body: LabelUpdate, request: Request):
     if not meta: raise HTTPException(404)
     meta["label"] = body.label
     meta["note"]  = body.note
+    if body.reset_day is not None:
+        meta["reset_day"] = body.reset_day
+    elif "reset_day" not in meta:
+        meta["reset_day"] = None
     await _save_meta(meta)
-    return {"kid": kid, "label": meta["label"], "note": meta["note"]}
+    return {"kid": kid, "label": meta["label"], "note": meta["note"], "reset_day": meta.get("reset_day")}
+
+
+@app.post("/_admin/keys")
+async def admin_create_key(request: Request):
+    _check_admin(request)
+    kids = await _scan_all_kids()
+    if len(kids) >= MAX_KEYS:
+        raise HTTPException(400, f"已达到最大子Key数量限制 ({MAX_KEYS})")
+
+    next_num = await _get_next_kid_num()
+    kid = f"k{next_num}"
+
+    if await _get_meta(kid):
+        raise HTTPException(409, f"Key {kid} already exists")
+
+    secret = "sk-sub-" + "".join(
+        secrets.choice(string.ascii_lowercase + string.digits) for _ in range(24))
+    global_rd = await _get_reset_day()
+    meta = {
+        "kid": kid, "label": f"用户{next_num}", "secret": secret,
+        "enabled": True, "limits": {"5h": None, "week": None, "month": None},
+        "note": "", "created_at": int(time.time()), "reset_day": global_rd,
+    }
+    await _save_meta(meta)
+    await rdb.set("config:next_kid_num", next_num + 1)
+    await _rebuild_secret_map()
+
+    return {**{k: v for k, v in meta.items() if k != "secret"}, "secret": secret}
+
+
+@app.delete("/_admin/keys/{kid}")
+async def admin_delete_key(kid: str, request: Request):
+    _check_admin(request)
+    meta = await _get_meta(kid)
+    if not meta:
+        raise HTTPException(404, f"Key {kid} not found")
+
+    kids = await _scan_all_kids()
+    if len(kids) <= 1:
+        raise HTTPException(400, "不能删除最后一个子Key")
+
+    rd = await _get_reset_day()
+    pi = period_info(kid, rd)
+    await rdb.delete(pi["5h"]["key"], pi["week"]["key"], pi["month"]["key"])
+
+    await rdb.hdel("map:secret", meta["secret"])
+    await rdb.delete(f"key:meta:{kid}")
+
+    return {"kid": kid, "deleted": True}
 
 
 @app.put("/_admin/keys/{kid}/usage")
@@ -413,7 +509,8 @@ async def admin_set_usage(kid: str, body: UsageUpdate, request: Request):
     _check_admin(request)
     meta = await _get_meta(kid)
     if not meta: raise HTTPException(404)
-    pi   = period_info(kid, await _get_reset_day())
+    rd = (meta or {}).get("reset_day") or await _get_reset_day()
+    pi   = period_info(kid, rd)
     pipe = rdb.pipeline()
     if body.month     is not None:
         pipe.set(pi["month"]["key"], body.month)
@@ -433,7 +530,8 @@ async def admin_reset_usage(kid: str, request: Request):
     _check_admin(request)
     meta = await _get_meta(kid)
     if not meta: raise HTTPException(404)
-    pi = period_info(kid, await _get_reset_day())
+    rd = meta.get("reset_day") or await _get_reset_day()
+    pi = period_info(kid, rd)
     await rdb.delete(pi["5h"]["key"], pi["week"]["key"], pi["month"]["key"])
     return {"kid": kid, "reset": True}
 
@@ -447,15 +545,21 @@ async def admin_get_config(request: Request):
 
 @app.put("/_admin/config/reset-day")
 async def admin_set_reset_day(body: ResetDayUpdate, request: Request):
-    """修改月度重置日：迁移当前月计数器后生效，已用量不丢失。"""
+    """修改月度重置日：迁移跟随全局的子账号计数器后生效，已用量不丢失。"""
     global _reset_day
     _check_admin(request)
     old_day = await _get_reset_day()
     new_day = body.day
     if old_day != new_day:
-        # 将所有子 Key 的当前月计数器迁移到新周期 key，并更新过期时间
-        for i in range(1, 5):
-            kid = f"k{i}"
+        kids = await _scan_all_kids()
+        for kid in kids:
+            meta = await _get_meta(kid)
+            if not meta:
+                continue
+            # 只有 reset_day 跟随全局的子账号才迁移
+            rd = meta.get("reset_day") or old_day
+            if rd != old_day:
+                continue
             old_pi = period_info(kid, old_day)
             new_pi = period_info(kid, new_day)
             await rdb.eval(
@@ -463,6 +567,9 @@ async def admin_set_reset_day(body: ResetDayUpdate, request: Request):
                 old_pi["month"]["key"], new_pi["month"]["key"],
                 new_pi["month"]["expire_at"],
             )
+            # 更新子账号的 reset_day
+            meta["reset_day"] = new_day
+            await _save_meta(meta)
     await rdb.set("config:monthly_reset_day", new_day)
     _reset_day = new_day
     return {"monthly_reset_day": new_day}
@@ -499,7 +606,8 @@ async def user_usage(request: Request):
 async def _check_and_deduct_quota(kid: str, meta: dict) -> tuple:
     """原子检查并扣除三维配额，返回 (k5h, kw, km) 供回滚用。不足则抛 429。"""
     lims = _limits(meta)
-    pi   = period_info(kid, await _get_reset_day())
+    rd = meta.get("reset_day") or _reset_day
+    pi   = period_info(kid, rd)
     k5h, kw, km = pi["5h"]["key"], pi["week"]["key"], pi["month"]["key"]
     e5h, ew, em = pi["5h"]["expire_at"], pi["week"]["expire_at"], pi["month"]["expire_at"]
 

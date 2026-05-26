@@ -193,10 +193,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
   <div class="content">
     <div class="ov">
-      <div class="ovc"><div class="ov-label">活跃子KEY</div><div class="ov-val" id="ov-a">—</div><div class="ov-sub">共 4 个</div></div>
-      <div class="ovc"><div class="ov-label">月请求总量</div><div class="ov-val" id="ov-m">—</div><div class="ov-sub">/ 90,000 次</div></div>
-      <div class="ovc"><div class="ov-label">本周请求总量</div><div class="ov-val" id="ov-w">—</div><div class="ov-sub">/ 45,000 次</div></div>
-      <div class="ovc"><div class="ov-label">近5小时总量</div><div class="ov-val" id="ov-5">—</div><div class="ov-sub">/ 6,000 次</div></div>
+      <div class="ovc"><div class="ov-label">活跃子KEY</div><div class="ov-val" id="ov-a">—</div><div class="ov-sub" id="ov-total">共 0 个</div></div>
+      <div class="ovc"><div class="ov-label">月请求总量</div><div class="ov-val" id="ov-m">—</div><div class="ov-sub" id="ov-m-sub"></div></div>
+      <div class="ovc"><div class="ov-label">本周请求总量</div><div class="ov-val" id="ov-w">—</div><div class="ov-sub" id="ov-w-sub"></div></div>
+      <div class="ovc"><div class="ov-label">近5小时总量</div><div class="ov-val" id="ov-5">—</div><div class="ov-sub" id="ov-5-sub"></div></div>
     </div>
     <div class="cfg-bar">
       <div class="cfg-info">
@@ -204,6 +204,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <span class="cfg-val" id="cfg-reset-day">每月 — 日</span>
       </div>
       <button class="cfg-edit" onclick="openResetDay()">修改</button>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+      <button class="btn-p" onclick="createKey()" style="padding:10px 20px;border-radius:9px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:var(--accent);color:#fff">＋ 新建子Key</button>
     </div>
     <div class="kg" id="kg"><div style="padding:40px;color:var(--text3);text-align:center">加载中…</div></div>
   </div>
@@ -243,9 +246,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <div class="mo" id="m-label">
   <div class="md">
     <h3>编辑用户信息</h3>
-    <div class="sub">设置名称和备注</div>
+    <div class="sub">设置名称、备注和月度重置日</div>
     <div class="fg"><label>用户名称</label><input type="text" id="i-label" placeholder="用户A"></div>
     <div class="fg"><label>备注</label><input type="text" id="i-note" placeholder="试用期 / 正式用户…"></div>
+    <div class="fg"><label>月度重置日</label><input type="number" id="i-reset-day" min="1" max="28" placeholder="跟随全局"><div class="hint">1-28：固定每月几号重置；留空=跟随全局设置</div></div>
     <div class="mf">
       <button class="btn btn-g" onclick="closeM('m-label')">取消</button>
       <button class="btn btn-p" onclick="saveLabel()">保存</button>
@@ -340,9 +344,18 @@ async function loadData(){
 function renderOv(){
   const act=data.filter(k=>k.enabled).length;
   document.getElementById('ov-a').textContent=act;
+  document.getElementById('ov-total').textContent=`共 ${data.length} 个`;
   document.getElementById('ov-m').textContent=data.reduce((s,k)=>s+k.usage.month,0).toLocaleString();
   document.getElementById('ov-w').textContent=data.reduce((s,k)=>s+k.usage.week,0).toLocaleString();
   document.getElementById('ov-5').textContent=data.reduce((s,k)=>s+k.usage['5h'],0).toLocaleString();
+  if(data.length>0){
+    const avgM=Math.round(data.reduce((s,k)=>s+k.usage.month,0)/data.length);
+    const avgW=Math.round(data.reduce((s,k)=>s+k.usage.week,0)/data.length);
+    const avg5=Math.round(data.reduce((s,k)=>s+k.usage['5h'],0)/data.length);
+    document.getElementById('ov-m-sub').textContent=`平均 ${avgM.toLocaleString()} 次/Key`;
+    document.getElementById('ov-w-sub').textContent=`平均 ${avgW.toLocaleString()} 次/Key`;
+    document.getElementById('ov-5-sub').textContent=`平均 ${avg5.toLocaleString()} 次/Key`;
+  }
 }
 
 function pc(p){return p>=90?'crit':p>=70?'warn':'ok'}
@@ -378,7 +391,7 @@ function renderKeys(){
           <div class="kav">${(k.label||k.kid)[0]}</div>
           <div>
             <div class="kname" onclick="openLabel('${k.kid}')">${esc(k.label)}</div>
-            <div class="knote">${esc(k.note||k.kid)}</div>
+            <div class="knote">${esc(k.note||k.kid)}${k.reset_day?` · 每月${k.reset_day}日重置`:''}</div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
@@ -387,6 +400,7 @@ function renderKeys(){
           <div class="ibtn" onclick="openUsage('${k.kid}')" data-tip="修改用量">✎</div>
           <div class="ibtn" onclick="confirmRegen('${k.kid}')" data-tip="重新生成Key">↺</div>
           <div class="ibtn ${k.enabled?'dng':''}" onclick="toggle('${k.kid}')" data-tip="${k.enabled?'禁用':'启用'}">${k.enabled?'⏸':'▶'}</div>
+          ${data.length > 1 ? `<div class="ibtn dng" onclick="confirmDelete('${k.kid}')" data-tip="删除Key">🗑</div>` : ''}
         </div>
       </div>
       <div class="ksec">
@@ -415,6 +429,33 @@ async function regen(kid){
   closeM('m-confirm');
   const r=await fetch(`/_admin/keys/${kid}/regenerate`,{method:'POST',headers:{'X-Admin-Token':tok}});
   if(r.ok){showT('新 Key 已生成','s');await loadData();}else showT('操作失败','e');
+}
+
+async function createKey(){
+  const r=await fetch('/_admin/keys',{method:'POST',headers:{'X-Admin-Token':tok}});
+  if(r.ok){
+    const d=await r.json();
+    showT(`新Key已创建: ${d.kid} (${d.secret})`,'s');
+    await loadData();
+  }else{
+    const err=await r.json().catch(()=>({detail:'操作失败'}));
+    showT(typeof err.detail==='string'?err.detail:'操作失败','e');
+  }
+}
+
+function confirmDelete(kid){
+  ek=kid;const k=data.find(x=>x.kid===kid);
+  document.getElementById('ct').textContent='删除 API Key';
+  document.getElementById('cm').textContent=`将永久删除「${k.label}」(${k.kid})，密钥立即失效。此操作不可撤销。`;
+  document.getElementById('cok').onclick=()=>deleteKey(kid);
+  openM('m-confirm');
+}
+
+async function deleteKey(kid){
+  closeM('m-confirm');
+  const r=await fetch(`/_admin/keys/${kid}`,{method:'DELETE',headers:{'X-Admin-Token':tok}});
+  if(r.ok){showT('Key 已删除','s');await loadData();}
+  else{const err=await r.json().catch(()=>({detail:'操作失败'}));showT(typeof err.detail==='string'?err.detail:'操作失败','e');}
 }
 
 // ── 限额弹窗 ──
@@ -456,10 +497,16 @@ function openLabel(kid){
   ek=kid;const k=data.find(x=>x.kid===kid);
   document.getElementById('i-label').value=k.label;
   document.getElementById('i-note').value=k.note||'';
+  document.getElementById('i-reset-day').value=k.reset_day||'';
   openM('m-label');
 }
 async function saveLabel(){
-  const body={label:document.getElementById('i-label').value.trim(),note:document.getElementById('i-note').value.trim()};
+  const body={
+    label:document.getElementById('i-label').value.trim(),
+    note:document.getElementById('i-note').value.trim(),
+  };
+  const rv=document.getElementById('i-reset-day').value;
+  if(rv!=='') body.reset_day=parseInt(rv);
   const r=await fetch(`/_admin/keys/${ek}/label`,{method:'PUT',headers:{'X-Admin-Token':tok,'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(r.ok){closeM('m-label');showT('信息已更新','s');await loadData();}else showT('保存失败','e');
 }
