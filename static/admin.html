@@ -264,7 +264,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div class="sub">每月几号 00:00 重置月度配额（1-28）</div>
     <div class="fg">
       <label>重置日</label>
-      <input type="number" id="i-reset-day" min="1" max="28" placeholder="1">
+      <input type="number" id="i-global-reset-day" min="1" max="28" placeholder="1">
       <div class="hint">建议 1-28，避免月末天数不一致</div>
     </div>
     <div class="mf">
@@ -548,11 +548,11 @@ async function copyS(kid){
 // ── 重置日 ──
 function openResetDay(){
   const cur=document.getElementById('cfg-reset-day').textContent.match(/\d+/);
-  document.getElementById('i-reset-day').value=cur?cur[0]:'1';
+  document.getElementById('i-global-reset-day').value=cur?cur[0]:'1';
   openM('m-reset-day');
 }
 async function saveResetDay(){
-  const v=parseInt(document.getElementById('i-reset-day').value);
+  const v=parseInt(document.getElementById('i-global-reset-day').value);
   if(!v||v<1||v>28){showT('请输入 1-28 的数字','e');return;}
   const r=await fetch('/_admin/config/reset-day',{method:'PUT',headers:{'X-Admin-Token':tok,'Content-Type':'application/json'},body:JSON.stringify({day:v})});
   if(r.ok){closeM('m-reset-day');document.getElementById('cfg-reset-day').textContent=`每月第 ${v} 日`;showT('重置日已更新','s');await loadData();}
