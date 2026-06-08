@@ -445,12 +445,25 @@ async def admin_set_label(kid: str, body: LabelUpdate, request: Request):
     _check_admin(request)
     meta = await _get_meta(kid)
     if not meta: raise HTTPException(404)
+
+    # 记录旧的 reset_day，用于迁移月度计数器
+    old_reset_day = meta.get("reset_day") or await _get_reset_day()
+
     meta["label"] = body.label
     meta["note"]  = body.note
     if body.reset_day is not None:
         meta["reset_day"] = body.reset_day
     elif "reset_day" not in meta:
         meta["reset_day"] = None
+
+    new_reset_day = meta.get("reset_day") or await _get_reset_day()
+
+    # reset_day 改变时，迁移月度计数器（保持用量不丢失）
+    if old_reset_day != new_reset_day:
+        old_pi = period_info(kid, old_reset_day)
+        new_pi = period_info(kid, new_reset_day)
+        await rdb.eval(LUA_MIGRATE_MONTH, 2, old_pi["month"]["key"], new_pi["month"]["key"], new_pi["month"]["expire_at"])
+
     await _save_meta(meta)
     return {"kid": kid, "label": meta["label"], "note": meta["note"], "reset_day": meta.get("reset_day")}
 
