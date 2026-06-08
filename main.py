@@ -58,6 +58,7 @@ PLAN_MODELS: set[str] = {
     "glm-4.7",
     "kimi-k2.5",
     "qwen3.6-plus",
+    "qwen3.7-plus",
 }
 
 # ─────────────────────────────────────────
