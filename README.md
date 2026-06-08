@@ -49,7 +49,13 @@ cd dashscope-proxy
 ### 2. 一键部署
 
 ```bash
+# 全新安装（旧版）
 bash setup.sh
+
+# 或部署 V2 版（与旧版并行运行，不冲突）
+git clone https://github.com/yksuper/dashscope-proxy.git dashscope-proxy-v2
+cd dashscope-proxy-v2
+bash setup-v2.sh
 ```
 
 脚本会自动：
