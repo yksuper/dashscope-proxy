@@ -731,7 +731,7 @@ async def _forward(request: Request, upstream_url: str,
                     headers=headers, content=body,
                     params=dict(request.query_params),
                 ) as upstream:
-                    if upstream.status_code >= 500 and quota_keys:
+                    if upstream.status_code >= 400 and quota_keys:
                         await rdb.eval(LUA_ROLLBACK, 3, *quota_keys)
                         rollback_done = True
                     async for chunk in upstream.aiter_bytes():
@@ -759,7 +759,7 @@ async def _forward(request: Request, upstream_url: str,
             await rdb.eval(LUA_ROLLBACK, 3, *quota_keys)
         raise HTTPException(502, f"上游连接失败: {e}")
 
-    if upstream.status_code >= 500 and quota_keys:
+    if upstream.status_code >= 400 and quota_keys:
         await rdb.eval(LUA_ROLLBACK, 3, *quota_keys)
 
     resp_headers = {k: v for k, v in upstream.headers.items() if k.lower() not in skip}
