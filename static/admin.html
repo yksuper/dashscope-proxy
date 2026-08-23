@@ -544,7 +544,7 @@ async function copyS(kid){
     showT('请先点击眼睛图标显示完整Key','e');
     return;
   }
-  await navigator.clipboard.writeText(secret);
+  await _copyText(secret);
   const b=document.getElementById(`cp-${kid}`);b.textContent='已复制';b.classList.add('ok');
   setTimeout(()=>{b.textContent='复制';b.classList.remove('ok');},2000);
 }
@@ -584,6 +584,17 @@ function showT(msg,t=''){
   tT=setTimeout(()=>el.classList.remove('show'),2800);
 }
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+async function _copyText(text){
+  if(navigator.clipboard&&window.isSecureContext){
+    await navigator.clipboard.writeText(text);
+  } else {
+    const ta=document.createElement('textarea');
+    ta.value=text;ta.style.cssText='position:fixed;left:-9999px;top:-9999px';
+    document.body.appendChild(ta);ta.focus();ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+}
 document.querySelectorAll('.mo').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open')}));
 </script>
 </body>

@@ -613,15 +613,27 @@ function switchTab(name){
 
 async function copyCode(btn){
   const pre=btn.parentElement.querySelector('pre');
-  await navigator.clipboard.writeText(pre.innerText);
+  await _copyText(pre.innerText);
   btn.textContent='已复制 ✓';
   setTimeout(()=>btn.textContent='复制',2000);
 }
 
 async function cpKey(){
-  await navigator.clipboard.writeText(myKey);
+  await _copyText(myKey);
   const b=document.getElementById('cpk'); b.textContent='已复制 ✓';
   setTimeout(()=>b.textContent='复制',2000);
+}
+
+async function _copyText(text){
+  if(navigator.clipboard&&window.isSecureContext){
+    await navigator.clipboard.writeText(text);
+  } else {
+    const ta=document.createElement('textarea');
+    ta.value=text;ta.style.cssText='position:fixed;left:-9999px;top:-9999px';
+    document.body.appendChild(ta);ta.focus();ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
 }
 
 setInterval(()=>{if(myKey)loadU();},60000);
