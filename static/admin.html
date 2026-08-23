@@ -544,9 +544,12 @@ async function copyS(kid){
     showT('请先点击眼睛图标显示完整Key','e');
     return;
   }
-  await _copyText(secret);
-  const b=document.getElementById(`cp-${kid}`);b.textContent='已复制';b.classList.add('ok');
-  setTimeout(()=>{b.textContent='复制';b.classList.remove('ok');},2000);
+  if(await _copyText(secret)){
+    const b=document.getElementById(`cp-${kid}`);b.textContent='已复制';b.classList.add('ok');
+    setTimeout(()=>{b.textContent='复制';b.classList.remove('ok');},2000);
+  } else {
+    showT('复制失败，请手动复制','e');
+  }
 }
 
 // ── 重置日 ──
@@ -586,14 +589,16 @@ function showT(msg,t=''){
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 async function _copyText(text){
   if(navigator.clipboard&&window.isSecureContext){
-    await navigator.clipboard.writeText(text);
-  } else {
+    try { await navigator.clipboard.writeText(text); return true; } catch(e){}
+  }
+  try {
     const ta=document.createElement('textarea');
     ta.value=text;ta.style.cssText='position:fixed;left:-9999px;top:-9999px';
     document.body.appendChild(ta);ta.focus();ta.select();
-    document.execCommand('copy');
+    const ok=document.execCommand('copy');
     document.body.removeChild(ta);
-  }
+    return ok;
+  } catch(e){ return false; }
 }
 document.querySelectorAll('.mo').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open')}));
 </script>
