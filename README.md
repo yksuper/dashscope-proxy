@@ -112,10 +112,10 @@ API Key:   sk-sub-xxxxx（你的子 Key）
 
 ```bash
 # 启动时指定模型
-claude --model qwen3-coder-next
+claude --model qwen3.7-plus
 
 # 会话中切换
-/model qwen3-max-2026-01-23
+/model qwen3.6-plus
 ```
 
 > 配额与 OpenAI 协议共享，模型名称与 openclaw 中使用的完全一致。
