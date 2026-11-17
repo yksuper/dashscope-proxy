@@ -48,19 +48,15 @@ class ResetDayUpdate(BaseModel):
     day: int = Field(..., ge=1, le=28, description="每月几号重置（1-28）")
 
 # ─────────────────────────────────────────
-#  Coding Plan 模型白名单
+#  Coding Plan 模型白名单（官方支持）
 # ─────────────────────────────────────────
 PLAN_MODELS: set[str] = {
-    "qwen3.5-plus",
-    "qwen3-max-2026-01-23",
-    "qwen3-coder-next",
-    "qwen3-coder-plus",
-    "MiniMax-M2.5",
-    "glm-5",
-    "glm-4.7",
-    "kimi-k2.5",
-    "qwen3.6-plus",
-    "qwen3.7-plus",
+    "qwen3.7-plus",      # 千问 - 文本生成、推理模型、视觉理解
+    "qwen3.6-plus",      # 千问 - 文本生成、推理模型、视觉理解
+    "qwen3.5-plus",      # 千问 - 文本生成、推理模型、视觉理解
+    "kimi-k2.5",         # 月之暗面 - 文本生成、推理模型、视觉理解
+    "glm-5",             # 智谱AI - 文本生成、推理模型
+    "MiniMax-M2.5",      # MiniMax - 文本生成、推理模型
 }
 
 # ─────────────────────────────────────────
